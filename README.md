@@ -1,12 +1,14 @@
 # Async Task Processing Platform
 
-A production-oriented, asynchronous task processing engine built with Django 5.2, Django REST Framework, Celery, Redis, and PostgreSQL. Demonstrates explicit state machines, non-blocking asynchronous dispatch, exponential backoff retries, request-level idempotency, user resource isolation, health probes, zero-root container security, and CI automation.
+A Django REST API for submitting and processing background tasks asynchronously with Celery, Redis, and PostgreSQL.
+
+The project is designed to demonstrate practical backend concepts including asynchronous job processing, task state tracking, database persistence, retry handling, request idempotency, health checks, and containerized development.
 
 ---
 
-## Architecture Overview
+## Architecture
 
-The system follows an asynchronous, decoupled producer-consumer pattern. API requests accept payload validation upfront, persist the task in an explicit `PENDING` status inside PostgreSQL, and schedule the background work via a post-commit transaction hook to Celery through Redis.
+The application follows a producer-consumer architecture:
 
 ```text
                          ┌─────────────────────┐
@@ -23,7 +25,6 @@ The system follows an asynchronous, decoupled producer-consumer pattern. API req
                                     │
                                     ▼
                              ┌─────────────┐
-                             │  Gunicorn   │
                              │   Django    │
                              │     DRF     │
                              └──┬───────┬──┘
@@ -43,121 +44,128 @@ The system follows an asynchronous, decoupled producer-consumer pattern. API req
                                           │
                                           ▼
                                      PostgreSQL
-
 ```
 
-### Critical Task Lifecycle
+### Task Lifecycle
 
-Tasks strictly move through a deterministic finite-state machine to guarantee traceability across retries and failures:
+Tasks are tracked through explicit states:
 
 ```text
-                         ┌───────────────┐
-                         │    PENDING    │
-                         └───────┬───────┘
-                                 │
-                                 ▼
-                         ┌───────────────┐
-                         │  PROCESSING   │
-                         └───────┬───────┘
-                                 │
-                         ┌───────┴────────┐
-                         ▼                ▼
-                  ┌────────────┐   ┌────────────┐
-                  │ COMPLETED  │   │   FAILED   │
-                  └────────────┘   └────────────┘
-
+PENDING
+   │
+   ▼
+PROCESSING
+   │
+   ├──────────────► COMPLETED
+   │
+   └──────────────► FAILED
 ```
 
-1. **`POST /api/tasks/`**: Request authenticated and validated.
-2. **Database Persistence**: Task record created with state `PENDING`.
-3. **Transaction Safety**: `transaction.on_commit()` pushes `task.id` to Redis only after the database transaction succeeds, preventing race conditions (e.g., workers attempting to process a task before it is visible in PostgreSQL).
-4. **Asynchronous Execution**: Celery transitions the state to `PROCESSING`, executes business logic, and records `COMPLETED` or `FAILED` states along with error messages and attempt counts.
+The intended flow is:
+
+1. The client submits a task through the API.
+2. Django validates and stores the task in PostgreSQL.
+3. The task is dispatched to Celery through Redis after the database transaction commits.
+4. A Celery worker processes the task.
+5. The task is marked as `COMPLETED` or `FAILED`.
+6. Retry attempts and error information are persisted with the task.
 
 ---
 
-## Core Features
+## Features
 
-* **State Machine Workflow**: Explicit transitions (`PENDING` $\rightarrow$ `PROCESSING` $\rightarrow$ `COMPLETED` / `FAILED`) with persistent execution tracking.
-* **Resilient Execution & Exponential Backoff**: Celery tasks automatically retry transient errors up to 3 times with exponential backoff (`retry_backoff=True`) up to a maximum delay.
-* **Idempotent Task Ingestion**: Custom `Idempotency-Key` HTTP header middleware backed by Redis prevents duplicate task execution caused by network retries or client timeouts.
-* **Multi-Tenant Data Isolation**: Multi-tenant queryset filtering enforces hard boundaries—attempting to retrieve another user's task returns an explicit `404 Not Found` rather than a `403 Forbidden` to prevent object enumeration.
-* **Observability & Health Probes**: Split liveness (`/health/live/`) and readiness (`/health/ready/`) endpoints for Kubernetes or container orchestration. Structured stdout logging for log aggregation.
-* **Production-Ready Security & Serving**: Dedicated multi-stage unprivileged (`USER django`) container build served via Gunicorn behind an Nginx reverse proxy with static asset caching.
-* **Comprehensive API Suite**: JWT Authentication, OpenAPI 3.0 schema generation via `drf-spectacular`, filtering, searching, and pagination out of the box.
+- Django REST API
+- PostgreSQL persistence
+- Celery background workers
+- Redis message broker
+- Explicit task status tracking
+- Retry handling with Celery
+- Database transaction safety with `transaction.on_commit()`
+- Request-level idempotency using `Idempotency-Key`
+- User-specific task access
+- Liveness and readiness health endpoints
+- Docker Compose development environment
+- Nginx reverse proxy
+- Pytest test suite
+- Environment-based configuration
 
 ---
 
 ## Tech Stack
 
-* **Core Framework**: Python 3.12, Django 5.2, Django REST Framework 3.16
-* **Authentication & Security**: SimpleJWT, Custom Idempotency Middleware
-* **Async Processing**: Celery 5.5, Redis 7
-* **Database**: PostgreSQL 16 (`psycopg` v3 driver)
-* **Web & WSGI Server**: Nginx, Gunicorn
-* **API Documentation**: OpenAPI 3, Swagger UI (`drf-spectacular`)
-* **Testing & Quality**: `pytest`, `pytest-django`, `ruff`
-* **Containerization**: Docker, Docker Compose
+| Component | Version / Technology |
+|---|---|
+| Python | 3.11 (Docker image) |
+| Django | 6.1.2 |
+| Django REST Framework | 3.18.3 |
+| Celery | 5.6.3 |
+| Redis | 7 (Docker image) |
+| PostgreSQL | 15 (Docker image) |
+| Database Driver | psycopg2-binary 2.9.13 |
+| Testing | pytest 9.1.1 / pytest-django |
+| Configuration | python-dotenv |
+| Web Server | Gunicorn |
+| Reverse Proxy | Nginx |
+| Containers | Docker / Docker Compose |
+
+> The versions above reflect the current repository configuration. Update this section whenever dependency or container versions change.
 
 ---
 
 ## Project Structure
 
 ```text
-async-task-platform/
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # Automated test & lint workflow
+django-async-task-platform/
 ├── config/
 │   ├── __init__.py
 │   ├── asgi.py
-│   ├── celery.py                # Celery app initialization & auto-discovery
-│   ├── settings.py              # Environment-driven configuration
-│   ├── urls.py                  # Global routing & OpenAPI endpoints
+│   ├── celery.py          # Celery application configuration
+│   ├── settings.py        # Django configuration
+│   ├── urls.py            # Root URL configuration
 │   └── wsgi.py
+│
+├── core/
+│   ├── apps.py
+│   ├── health.py          # Health-check endpoints
+│   ├── middleware.py      # Request middleware
+│   ├── urls.py
+│   └── tests/
+│
 ├── tasks/
 │   ├── migrations/
-│   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── middleware.py            # Redis-backed idempotency protection
-│   ├── models.py                # Task domain model & indexing
-│   ├── pagination.py            # Standardized page-number pagination
-│   ├── serializers.py          # DRF validation & register serializers
-│   ├── tasks.py                 # Resilient Celery task logic with retries
-│   ├── urls.py                  # Task API routes & health probes
-│   ├── views.py                 # Task ViewSet & probe logic
-│   └── tests.py                 # pytest suite covering isolation & auth
-├── nginx/
-│   └── nginx.conf               # Reverse proxy & static routing
-├── .dockerignore
+│   ├── models.py          # Task domain model
+│   ├── tasks.py           # Celery task definitions
+│   ├── views.py
+│   └── tests/
+│
+├── docker/
+│   └── nginx.conf         # Nginx reverse-proxy configuration
+│
+├── scripts/
 ├── .env.example
 ├── .gitignore
-├── Dockerfile                   # Development container spec
-├── Dockerfile.prod              # Multi-stage non-root production spec
-├── Makefile                     # Helper developer commands
-├── docker-compose.yml           # Local dev setup with hot-reload
-├── docker-compose.prod.yml      # Orchestrated production setup
+├── Dockerfile
+├── docker-compose.yml
 ├── manage.py
-├── pytest.ini                   # Test configuration
-├── requirements.txt             # Direct dependencies
-└── ruff.toml                    # Linter & formatter settings
-
+├── pytest.ini
+└── requirements.txt
 ```
 
 ---
 
-## Quickstart & Environment Setup
+## Environment Configuration
 
-### Environment Configuration
-
-Clone the repository and copy the example environment configuration:
+Create a local environment file from the example:
 
 ```bash
 cp .env.example .env
-
 ```
 
-Default configuration inside `.env`:
+The Docker Compose setup uses PostgreSQL and Redis service names as hosts.
+
+Example configuration:
 
 ```ini
 DJANGO_SECRET_KEY=change-me-in-production
@@ -173,235 +181,184 @@ POSTGRES_PORT=5432
 REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/1
-
 ```
+
+Never commit real secrets or production credentials.
 
 ---
 
-## Local Development (Docker Compose)
+## Local Development with Docker
 
-The local development setup mounts live code volumes into the containers for automatic hot-reloading when editing Django views or Celery task files.
-
-### 1. Launch local stack
+### 1. Build and start the services
 
 ```bash
 docker compose up --build -d
-
 ```
 
-### 2. Run migrations
+The Compose stack contains:
+
+- PostgreSQL
+- Redis
+- Django/Gunicorn
+- Celery worker
+- Nginx
+
+### 2. Apply migrations
 
 ```bash
 docker compose exec web python manage.py migrate
-
 ```
 
 ### 3. Create a superuser
 
 ```bash
 docker compose exec web python manage.py createsuperuser
-
 ```
 
-The app will be available at:
+### 4. Check the application
 
-* **API Base**: `http://localhost:8000/api/`
-* **Swagger Documentation**: `http://localhost:8000/api/docs/`
-* **Health Probes**: `http://localhost:8000/api/health/ready/`
+The current Compose configuration exposes:
+
+- API: http://localhost:8000/
+- Nginx: http://localhost/
+- Health endpoints: see the API health routes in `core/urls.py`
 
 ---
 
-## Production Deployment
+## API Usage
 
-The production configuration runs Django behind Gunicorn inside a hardened container (`USER django`), proxied by Nginx for static file serving and client buffering.
+### Authentication
 
-### 1. Build and Run Production Services
+If authentication is enabled in your current configuration, obtain credentials using the authentication endpoints exposed by the project.
 
-```bash
-docker compose -f docker-compose.prod.yml up --build -d
+The exact routes are defined in the project's URL configuration.
 
-```
+### Creating a Task
 
-### 2. Collect Static Files & Apply Migrations
-
-```bash
-docker compose -f docker-compose.prod.yml run --rm web python manage.py collectstatic --noinput
-docker compose -f docker-compose.prod.yml run --rm web python manage.py migrate
-
-```
-
-Production stack handles traffic via Nginx on port `80`.
-
----
-
-## API Documentation & Examples
-
-### 1. User Registration & Authentication
-
-**Register a User**:
+Example request:
 
 ```bash
-curl -X POST http://localhost:8000/api/auth/register/ \
+curl -X POST http://localhost/api/tasks/ \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Idempotency-Key: task-request-001" \
   -d '{
-    "username": "developer",
-    "email": "dev@example.com",
-    "password": "securepassword123"
+    "title": "Process Dataset",
+    "description": "Background processing job"
   }'
-
 ```
 
-**Obtain JWT Bearer Token**:
+The `Idempotency-Key` is intended to prevent duplicate processing when a client retries the same request.
+
+### Filtering Tasks
+
+Example:
 
 ```bash
-curl -X POST http://localhost:8000/api/auth/token/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "developer",
-    "password": "securepassword123"
-  }'
-
+curl "http://localhost/api/tasks/?status=COMPLETED" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
-*Response*:
+Use the project's URL and view configuration as the source of truth for supported query parameters.
 
-```json
-{
-  "refresh": "eyJhbGciOi...",
-  "access": "eyJhbGciOi..."
-}
+---
 
+## Health Checks
+
+The project provides application health checks for container and service monitoring.
+
+Typical endpoints include:
+
+```text
+GET /api/health/live/
+GET /api/health/ready/
+```
+
+The readiness check is intended to verify that required dependencies such as PostgreSQL and Redis are available.
+
+Example:
+
+```bash
+curl http://localhost/api/health/live/
+curl http://localhost/api/health/ready/
 ```
 
 ---
 
-### 2. Idempotent Task Creation
+## Testing
 
-In unstable network conditions, include an `Idempotency-Key` header. Subsequent requests bearing the same key will bypass task creation and immediately return the cached original response.
-
-```bash
-curl -X POST http://localhost:8000/api/tasks/ \
-  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
-  -H "Idempotency-Key: task-req-uuid-001" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Process Large Dataset",
-    "description": "Background ingestion job"
-  }'
-
-```
-
-*Response (`201 Created`)*:
-
-```json
-{
-  "id": 1,
-  "title": "Process Large Dataset",
-  "description": "Background ingestion job",
-  "status": "PENDING",
-  "result_data": {},
-  "error_message": "",
-  "retry_count": 0,
-  "owner": "developer",
-  "created_at": "2026-10-08T14:30:00Z",
-  "updated_at": "2026-10-08T14:30:00Z"
-}
-
-```
-
----
-
-### 3. Fetching and Filtering Tasks
-
-**Filter tasks by status**:
-
-```bash
-curl -X GET "http://localhost:8000/api/tasks/?status=COMPLETED&ordering=-created_at" \
-  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
-
-```
-
-**Search task content**:
-
-```bash
-curl -X GET "http://localhost:8000/api/tasks/?search=Dataset" \
-  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
-
-```
-
----
-
-### 4. Health Probes
-
-* **Liveness Probe** (`GET /api/health/live/`): Verifies the application container web worker process is running. Returns `200 OK`.
-* **Readiness Probe** (`GET /api/health/ready/`): Verifies database connection pool and Redis connection before directing traffic.
-
-*Healthy Response (`200 OK`)*:
-
-```json
-{
-  "status": "ok",
-  "checks": {
-    "postgres": "ok",
-    "redis": "ok"
-  }
-}
-
-```
-
-*Degraded Response (`503 Service Unavailable`)*:
-
-```json
-{
-  "status": "unavailable",
-  "checks": {
-    "postgres": "ok",
-    "redis": "error"
-  }
-}
-
-```
-
----
-
-## Testing & Quality Assurance
-
-Run the test suite, linting, and formatting checks locally or via Docker:
-
-### Execute Pytest Suite
+Run the test suite inside the web container:
 
 ```bash
 docker compose exec web pytest
-
 ```
 
-### Run Linter (Ruff)
+For a local Python environment:
 
 ```bash
-docker compose exec web ruff check .
-
-```
-
-### Auto-format Code
-
-```bash
-docker compose exec web ruff format .
-
+pytest
 ```
 
 ---
 
-## CI/CD Pipeline
+## Celery Worker
 
-Automated testing is configured via GitHub Actions in `.github/workflows/ci.yml`. On every pull request or push to the `main` branch, the workflow:
+The worker is started by Docker Compose:
 
-1. Spins up PostgreSQL and Redis service containers.
-2. Installs Python dependencies.
-3. Checks code style using `ruff`.
-4. Executes unit, integration, and isolation tests using `pytest`.
+```bash
+docker compose up celery_worker
+```
+
+Or run it manually:
+
+```bash
+celery -A config worker --loglevel=info
+```
+
+Celery uses Redis as the message broker and result backend.
+
+---
+
+## Development Notes
+
+This repository is currently focused on the backend architecture and asynchronous processing workflow.
+
+The main engineering concepts demonstrated are:
+
+- REST API design
+- relational persistence
+- asynchronous job queues
+- producer-consumer architecture
+- transaction boundaries
+- idempotency
+- task state machines
+- retry handling
+- service health checks
+- Dockerized development
+- reverse-proxy configuration
+- automated testing
+
+---
+
+## Roadmap
+
+Planned improvements for a production-oriented version:
+
+- [ ] Add/complete JWT authentication
+- [ ] Add OpenAPI/Swagger documentation
+- [ ] Add API filtering, searching, and pagination
+- [ ] Add stronger task concurrency guarantees
+- [ ] Add Celery retry/backoff tests
+- [ ] Add Docker healthchecks
+- [ ] Add a non-root production image
+- [ ] Add a dedicated production Compose configuration
+- [ ] Add GitHub Actions CI
+- [ ] Add structured application logging
+- [ ] Add monitoring/metrics
+- [ ] Add integration tests for Redis and Celery
 
 ---
 
 ## License
 
-Distributed under the [MIT License](https://www.google.com/search?q=LICENSE).
+This project is currently intended as a portfolio and learning project.
