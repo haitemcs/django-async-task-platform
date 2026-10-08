@@ -69,13 +69,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "async_tasks"),
         "USER": os.getenv("POSTGRES_USER", "async_tasks"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "change-me"),
+        "PASSWORD": "change-me",  # <-- Forced directly to match your DB
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": 60,
@@ -96,9 +95,8 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ),
-    "DEFAULT_PAGINATION_CLASS": (
-        "tasks.pagination.TaskPagination"
-    ),
+    # Plain string without parentheses
+    "DEFAULT_PAGINATION_CLASS": "tasks.pagination.TaskPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.AnonRateThrottle",
