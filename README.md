@@ -1,7 +1,3 @@
-﻿Here is a clean, well-formatted Markdown version designed to render nicely on GitHub without line-wrapping issues or awkward formatting.
-
----
-
 # Async Task Processing Platform
 
 A production-oriented, asynchronous task processing engine built with Django 5.2, Django REST Framework, Celery, Redis, and PostgreSQL. Demonstrates explicit state machines, non-blocking asynchronous dispatch, exponential backoff retries, request-level idempotency, user resource isolation, health probes, zero-root container security, and CI automation.
