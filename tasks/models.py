@@ -1,7 +1,3 @@
-#1. pen the Command Palette by pressing Ctrl + Shift + P (Windows/Linux) or Cmd + Shift + P (Mac).
-#2. Type Copilot into the search bar.
-#3. Select Toggle Copilot Completions (or Disable Completions). Repeat the step to turn it back on later.
-
 from django.db import models
 
 from django.conf import settings
