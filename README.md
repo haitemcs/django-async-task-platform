@@ -23,7 +23,7 @@ Client -> Django API -> PostgreSQL
 
 ## Tech stack
 
-- Python 3.11 container image
+- Python 3.12 container image
 - Django 6.1.2
 - Django REST Framework 3.18.3
 - Celery 5.6.3
