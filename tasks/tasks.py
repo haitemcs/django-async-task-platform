@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
     retry_backoff_max=60,       # Caps the maximum wait time between retries at 60 seconds.
     max_retries=3,              # Gives it 3 tries total before giving up permanently.
 )
-def process_task(self, task_id: int):
+def process_Task(self, task_id: int):
     # First, make sure the task actually exists in the database.
     task = Task.objects.get(pk=task_id)
 
