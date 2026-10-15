@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,7 +46,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "tasks.middleware.IdempotencyMiddleware", #prevent double-submits
+    "core.middleware.IdempotencyMiddleware",
 ]
 
 
@@ -73,8 +74,8 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "async_tasks"),
-        "USER": os.getenv("POSTGRES_USER", "async_tasks"),
-        "PASSWORD": "change-me",  # <-- Forced directly to match your DB
+        "USER": os.getenv("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": 60,
@@ -95,7 +96,6 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ),
-    # Plain string without parentheses
     "DEFAULT_PAGINATION_CLASS": "tasks.pagination.TaskPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_THROTTLE_CLASSES": (
@@ -111,8 +111,8 @@ REST_FRAMEWORK = {
 
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": __import__("datetime").timedelta(minutes=15),
-    "REFRESH_TOKEN_LIFETIME": __import__("datetime").timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 
