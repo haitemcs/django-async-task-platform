@@ -45,7 +45,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "tasks.middleware.IdempotencyMiddleware", #prevent double-submits
+    "core.middleware.IdempotencyMiddleware",  # Prevent duplicate submissions
 ]
 
 
@@ -74,7 +74,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "async_tasks"),
         "USER": os.getenv("POSTGRES_USER", "async_tasks"),
-        "PASSWORD": "change-me",  # <-- Forced directly to match your DB
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": 60,
