@@ -3,13 +3,14 @@ from django.db import models
 from django.conf import settings
 from django.db import models
 
-class TaskStatus (models.TextChoices): # Creates a closed list of text choices
-    PENDING = "PENDING" , "pending"
+class TaskStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
     PROCESSING = "PROCESSING", "Processing"
     COMPLETED = "COMPLETED", "Completed"
     FAILED = "FAILED", "Failed"
 
-class task(models.Model):  #Inheriting from this turns a plain Python class into a database table named task.
+
+class Task(models.Model):  #Inheriting from this turns a plain Python class into a database table named task.
  owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, #task cannot exist out of nowhere; it must belong to a person
         on_delete=models.CASCADE, # there is this also on_delete=models.SET_NULL which is it delete the owner (ownerid = null) but leaves the tasks floating in db 
