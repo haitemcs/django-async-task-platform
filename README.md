@@ -1,12 +1,12 @@
 # Async Task Processing Platform
 
-A Django backend project exploring asynchronous job processing with Celery and Redis, PostgreSQL persistence, task-state modeling, JWT configuration, idempotency middleware, health checks, and a Docker Compose environment.
+A Django backend project exploring asynchronous job processing with Celery and Redis, PostgreSQL persistence, task-state modeling, JWT authentication, idempotency middleware, health checks, and a Docker Compose environment.
 
-**Project status:** in progress. The repository contains the task model and a sample Celery task, but the task REST API views and end-to-end submission workflow are not implemented yet. This README distinguishes existing code from planned behavior.
+**Project status:** in progress. The repository contains task API views and routes, but the complete runtime workflow still needs to be verified with Docker and integration tests.
 
 ## Architecture
 
-The current Compose configuration defines these services:
+The Compose environment defines:
 
 - **web** — Django served by Gunicorn
 - **db** — PostgreSQL 15
@@ -21,8 +21,6 @@ Client -> Django API -> PostgreSQL
                     -> Redis -> Celery worker
 ```
 
-The complete task-submission and processing flow is still under development.
-
 ## Tech stack
 
 - Python 3.11 container image
@@ -30,26 +28,27 @@ The complete task-submission and processing flow is still under development.
 - Django REST Framework 3.18.3
 - Celery 5.6.3
 - PostgreSQL 15
-- Redis
+- Redis 7
 - Simple JWT
 - django-filter
 - drf-spectacular
 - pytest and pytest-django
 - Docker Compose, Gunicorn, and Nginx
 
-Dependency versions are pinned in `requirements.txt`; the database and Redis image tags are specified in `docker-compose.yml`.
+Dependencies are pinned in `requirements.txt`; service image versions are specified in `docker-compose.yml`.
 
 ## Current implementation
 
-- A task model with `PENDING`, `PROCESSING`, `COMPLETED`, and `FAILED` status choices
+- A `Task` model with `PENDING`, `PROCESSING`, `COMPLETED`, and `FAILED` status choices
 - Task fields for owner, title, description, result data, error message, retry count, and timestamps
 - Database indexes for task status, owner plus creation date, and owner plus status
-- A sample Celery function named `process_background_job`
+- Task API routes and owner-scoped task views
+- Celery task processing code
 - Idempotency middleware
-- Liveness and readiness health-check routes
-- JWT authentication, pagination, filtering, search, ordering, throttling, and OpenAPI schema settings configured in Django
+- Liveness and readiness health-check endpoints
+- JWT authentication, pagination, filtering, search, ordering, throttling, and OpenAPI schema settings
 
-Some configured capabilities are not yet connected to a complete task API. In particular, `tasks/views.py` currently contains only the Django placeholder, so task create/list/detail endpoints should not be assumed to work.
+These features have not yet been confirmed by a successful end-to-end run. The automated tests also need to be expanded beyond placeholder coverage.
 
 ## Project layout
 
@@ -57,7 +56,7 @@ Some configured capabilities are not yet connected to a complete task API. In pa
 django-async-task-platform/
 ├── config/                 # Django settings, URLs, WSGI/ASGI, Celery config
 ├── core/                   # Health checks and middleware
-├── tasks/                  # Task model and Celery task
+├── tasks/                  # Task API, model, and Celery task
 ├── docker/nginx.conf
 ├── scripts/entrypoint.sh
 ├── .env.example
@@ -70,35 +69,48 @@ django-async-task-platform/
 └── README.md
 ```
 
-A local `db.sqlite3` file is also currently tracked, but the configured Django database backend is PostgreSQL. It is not needed for the intended Compose setup.
-
 ## Run with Docker Compose
 
 Requirements: Docker Engine and Docker Compose.
 
-From the repository root:
+1. Optionally copy `.env.example` to `.env` and adjust the development settings.
+2. Build and start the services:
 
-```bash
-docker compose up --build -d
-docker compose exec web python manage.py migrate
-```
+   ```bash
+   docker compose up --build -d
+   ```
 
-Available addresses from the current Compose port mappings:
+3. Apply database migrations:
+
+   ```bash
+   docker compose exec web python manage.py migrate
+   ```
+
+4. Check Django configuration and database migration state:
+
+   ```bash
+   docker compose exec web python manage.py check
+   docker compose exec web python manage.py makemigrations --check --dry-run
+   ```
+
+The Compose defaults are intended for local development only. Change credentials and the Django secret key before using this configuration outside a local environment. PostgreSQL initialization variables only create the configured role/database when the data directory is first initialized; changing these values does not rewrite an existing database volume.
+
+Available addresses:
 
 - Nginx: http://localhost/
 - Django/Gunicorn directly: http://localhost:8000/
 - Liveness check: http://localhost/health/live/
 - Readiness check: http://localhost/health/ready/
 
-The health routes are currently registered without an `/api/` prefix. The readiness endpoint checks dependencies as implemented in `core/health.py`.
-
-The Compose file currently supplies database credentials directly in the service configuration, and Django settings currently use a hard-coded database password. Treat this as development-only configuration; replace these values with environment-driven secrets before any real deployment. Do not use the development defaults in production.
+The readiness endpoint checks the database and Redis dependencies. Health routes are mounted under `/health/` in `config/urls.py`.
 
 Stop services with:
 
 ```bash
 docker compose down
 ```
+
+This stops containers but preserves the named PostgreSQL data volume. To avoid accidental data loss, do not remove the volume as a troubleshooting shortcut.
 
 ## Tests
 
@@ -108,17 +120,15 @@ Run the current test suite in the web container:
 docker compose exec web pytest
 ```
 
-The test suite is still limited and should not be taken as evidence that the complete asynchronous task API is implemented.
+Passing the current test suite should not be treated as proof of full task-processing correctness; meaningful API, database, idempotency, and Celery integration tests remain necessary.
 
 ## Development roadmap
 
-- [ ] Implement authenticated task creation, listing, and detail endpoints
-- [ ] Connect API submissions to Celery after the database transaction commits
-- [ ] Persist processing results and failure details
+- [ ] Add meaningful API, authentication, and task lifecycle tests
+- [ ] Verify task submission and Celery processing end to end
 - [ ] Complete idempotency behavior and tests
-- [ ] Add task lifecycle, retry, and integration tests
-- [ ] Move all credentials to environment variables
 - [ ] Add CI and strengthen production container hardening
+- [ ] Replace development-only credentials and secret-key defaults for deployment
 
 ## License
 
