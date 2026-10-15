@@ -2,7 +2,7 @@
 
 A Django backend project exploring asynchronous job processing with Celery and Redis, PostgreSQL persistence, task-state modeling, JWT configuration, idempotency middleware, health checks, and a Docker Compose environment.
 
-**Project status:** in progress. The repository contains the task model and a sample Celery task, but the task REST API views and end-to-end submission workflow are not implemented yet. This README distinguishes existing code from planned behavior.
+**Project status:** in progress. The repository includes task REST API views, JWT routes, Celery task processing, health checks, and Docker Compose configuration. Run the setup and checks below to verify the full workflow in your environment.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ Client -> Django API -> PostgreSQL
                     -> Redis -> Celery worker
 ```
 
-The complete task-submission and processing flow is still under development.
+The intended submission flow saves a task in PostgreSQL and dispatches processing to Celery after the database transaction commits.
 
 ## Tech stack
 
@@ -44,12 +44,12 @@ Dependency versions are pinned in `requirements.txt`; the database and Redis ima
 - A task model with `PENDING`, `PROCESSING`, `COMPLETED`, and `FAILED` status choices
 - Task fields for owner, title, description, result data, error message, retry count, and timestamps
 - Database indexes for task status, owner plus creation date, and owner plus status
-- A sample Celery function named `process_background_job`
+- A Celery task for processing submitted tasks
 - Idempotency middleware
 - Liveness and readiness health-check routes
 - JWT authentication, pagination, filtering, search, ordering, throttling, and OpenAPI schema settings configured in Django
 
-Some configured capabilities are not yet connected to a complete task API. In particular, `tasks/views.py` currently contains only the Django placeholder, so task create/list/detail endpoints should not be assumed to work.
+Task API routes are defined in `tasks/urls.py`; verify them with the API checks and tests before treating the entire workflow as production-ready.
 
 ## Project layout
 
@@ -92,7 +92,7 @@ Available addresses from the current Compose port mappings:
 
 The health routes are currently registered without an `/api/` prefix. The readiness endpoint checks dependencies as implemented in `core/health.py`.
 
-The Compose file currently supplies database credentials directly in the service configuration, and Django settings currently use a hard-coded database password. Treat this as development-only configuration; replace these values with environment-driven secrets before any real deployment. Do not use the development defaults in production.
+Compose and Django read the same `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` environment variables. The fallback values are for local development only; set strong secrets outside the repository before any real deployment. If you already have a persistent PostgreSQL volume initialized with different credentials, changing environment variables does not rewrite the existing database role/password.
 
 Stop services with:
 
@@ -112,12 +112,12 @@ The test suite is still limited and should not be taken as evidence that the com
 
 ## Development roadmap
 
-- [ ] Implement authenticated task creation, listing, and detail endpoints
-- [ ] Connect API submissions to Celery after the database transaction commits
+- [x] Implement authenticated task creation, listing, and detail endpoints
+- [x] Connect API submissions to Celery after the database transaction commits
 - [ ] Persist processing results and failure details
 - [ ] Complete idempotency behavior and tests
 - [ ] Add task lifecycle, retry, and integration tests
-- [ ] Move all credentials to environment variables
+- [x] Read database credentials from environment variables
 - [ ] Add CI and strengthen production container hardening
 
 ## License
