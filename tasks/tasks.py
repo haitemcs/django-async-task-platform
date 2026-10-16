@@ -8,6 +8,14 @@ from .models import Task, TaskStatus
 logger = logging.getLogger(__name__)
 
 
+def _perform_task(task_id: int) -> dict:
+    """Placeholder for the actual long-running business operation."""
+    return {
+        "message": "Task processed successfully",
+        "task_id": task_id,
+    }
+
+
 @shared_task(
     bind=True,                  # bind=True gives us 'self' so we can check how many times this task has failed and retried.
     autoretry_for=(Exception,), # If any error happens, Celery will automatically catch it and try again.
@@ -32,12 +40,7 @@ def process_task(self, task_id: int):
             self.request.retries,
         )
 
-        # --- Put your actual heavy work here (API calls, image processing, etc.) ---
-        result = {
-            "message": "Task processed successfully",
-            "task_id": task_id,
-        }
-        # -----------------------------------------------------------------------
+        result = _perform_task(task_id)
 
         # If we got here without errors, update the database to COMPLETED and save the result data.
         Task.objects.filter(pk=task_id).update(
