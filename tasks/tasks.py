@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
     autoretry_for=(Exception,), # If any error happens, Celery will automatically catch it and try again.
     retry_backoff=True,         # Spreads out retries over time so we don't hammer the server (1s, 2s, 4s...).
     retry_backoff_max=60,       # Caps the maximum wait time between retries at 60 seconds.
-    max_retries=3,              # Gives it 3 tries total before giving up permanently.
+    max_retries=3,              # Allows up to 3 retries after the initial attempt (4 attempts total).
 )
-def process_Task(self, task_id: int):
+def process_task(self, task_id: int):
     # First, make sure the task actually exists in the database.
     task = Task.objects.get(pk=task_id)
 
