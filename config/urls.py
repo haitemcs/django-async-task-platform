@@ -1,5 +1,5 @@
 # admin: Imports Django's built-in, ready-to-use administrative web interface site.
-from django.contrib.admin import admin
+from django.contrib import admin
 
 # include: Allows taking a group of URL patterns from another file and linking them here.
 # path: Maps a specific URL string URL pattern to a view, router, or included URL file.
